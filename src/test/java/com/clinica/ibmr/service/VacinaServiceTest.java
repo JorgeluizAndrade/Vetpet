@@ -12,6 +12,7 @@ import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class VacinaServiceTest {
@@ -20,6 +21,7 @@ class VacinaServiceTest {
     private VacinaRepository vacinas;
     private IntegracaoGovernoRepository integracoes;
     private VinculoMicrochipRepository microchips;
+    private ApplicationEventPublisher eventos;
     private VacinaService service;
     private Animal animal;
     private Veterinario veterinario;
@@ -31,7 +33,8 @@ class VacinaServiceTest {
         vacinas = mock(VacinaRepository.class);
         integracoes = mock(IntegracaoGovernoRepository.class);
         microchips = mock(VinculoMicrochipRepository.class);
-        service = new VacinaService(animais, veterinarios, vacinas, integracoes, microchips);
+        eventos = mock(ApplicationEventPublisher.class);
+        service = new VacinaService(animais, veterinarios, vacinas, integracoes, microchips, eventos);
         animal = mock(Animal.class);
         veterinario = mock(Veterinario.class);
         when(animal.getId()).thenReturn(9L);
@@ -60,6 +63,9 @@ class VacinaServiceTest {
         assertEquals(ClinicaEnums.TipoOperacaoIntegracao.VACINA_ANTIRRABICA, integration.getTipoOperacao());
         assertNull(integration.getProtocoloExterno());
         assertEquals("vacina-antirrabica-31", integration.getChaveIdempotencia());
+        verify(eventos).publishEvent(argThat((Object event) ->
+                event instanceof com.clinica.ibmr.integration.VacinaAntirrabicaAplicadaEvent applied
+                        && applied.vacinaId().equals(31L)));
     }
 
     @Test

@@ -7,6 +7,7 @@ public interface GovernoIntegrationClient {
 
     record SolicitacaoVacinaAntirrabica(String idempotencyKey, String microchip, Long animalId,
             String nomeAnimal, LocalDate dataAplicacao, Long vacinaId, String nomeVacina,
-            String fabricante, String lote, Long veterinarioId, String nomeVeterinario) {}
+            String fabricante, String lote, Long veterinarioId, String nomeVeterinario,
+            String numeroCrmv, String ufCrmv) {}
     record ResultadoEnvio(String protocolo, String mensagem) {}
 }

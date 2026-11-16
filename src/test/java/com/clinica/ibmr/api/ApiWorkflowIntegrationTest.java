@@ -5,22 +5,33 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.clinica.ibmr.integration.GovernoIntegrationClient;
+import com.clinica.ibmr.integration.GovernoIntegrationClient.ResultadoEnvio;
+import com.clinica.ibmr.api.ApiExceptions.ExternalServiceException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 class ApiWorkflowIntegrationTest {
     @Autowired private MockMvc mockMvc;
+    @MockitoBean private GovernoIntegrationClient governo;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void bootstrapLoginTutorAnimalMicrochipAndRabiesVaccineFlow() throws Exception {
+        when(governo.enviarVacinaAntirrabica(any()))
+                .thenThrow(new ExternalServiceException("Serviço indisponível."))
+                .thenReturn(new ResultadoEnvio("PROTOCOLO-TESTE-1", "Recebida"));
         MvcResult bootstrap = mockMvc.perform(post("/api/auth/bootstrap")
                         .header("X-Bootstrap-Secret", "test-bootstrap-secret")
                         .contentType("application/json")
@@ -139,10 +150,27 @@ class ApiWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.antirrabica").value(true))
                 .andReturn();
 
-        mockMvc.perform(get("/api/integracoes/animal/{id}", animalId).session(session))
+        MvcResult failedIntegration = mockMvc.perform(get("/api/integracoes/animal/{id}", animalId).session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].situacao").value("PENDENTE"))
-                .andExpect(jsonPath("$[0].protocoloExterno").doesNotExist());
+                .andExpect(jsonPath("$[0].situacao").value("FALHA"))
+                .andExpect(jsonPath("$[0].quantidadeTentativas").value(1))
+                .andReturn();
+        long integrationId = json(failedIntegration).get(0).get("id").asLong();
+
+        mockMvc.perform(post("/api/integracoes/{id}/tentativas", integrationId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.situacao").value("CONFIRMADA"))
+                .andExpect(jsonPath("$.protocoloExterno").value("PROTOCOLO-TESTE-1"))
+                .andExpect(jsonPath("$.quantidadeTentativas").value(2));
+        var solicitacao = org.mockito.ArgumentCaptor.forClass(
+                GovernoIntegrationClient.SolicitacaoVacinaAntirrabica.class);
+        verify(governo, org.mockito.Mockito.times(2)).enviarVacinaAntirrabica(solicitacao.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("985112345678901",
+                solicitacao.getAllValues().get(0).microchip());
+        org.junit.jupiter.api.Assertions.assertEquals("90001", solicitacao.getAllValues().get(0).numeroCrmv());
+        org.junit.jupiter.api.Assertions.assertEquals("RJ", solicitacao.getAllValues().get(0).ufCrmv());
+        org.junit.jupiter.api.Assertions.assertEquals(solicitacao.getAllValues().get(0).idempotencyKey(),
+                solicitacao.getAllValues().get(1).idempotencyKey());
         mockMvc.perform(get("/api/animais/{id}/vacinas", animalId).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(json(vaccination).get("id").asLong()));

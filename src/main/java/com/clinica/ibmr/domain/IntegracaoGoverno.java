@@ -60,4 +60,22 @@ public class IntegracaoGoverno {
     public LocalDateTime getDataHoraSolicitacao() { return dataHoraSolicitacao; }
     public LocalDateTime getDataHoraResposta() { return dataHoraResposta; }
     public String getMensagemErro() { return mensagemErro; }
+
+    public void iniciarTentativa() {
+        quantidadeTentativas++;
+        situacao = ClinicaEnums.SituacaoIntegracao.ENVIADA;
+        mensagemErro = null;
+        dataHoraResposta = null;
+    }
+    public void confirmar(String protocolo, LocalDateTime quando) {
+        protocoloExterno = protocolo;
+        situacao = ClinicaEnums.SituacaoIntegracao.CONFIRMADA;
+        dataHoraResposta = quando;
+        mensagemErro = null;
+    }
+    public void falhar(String mensagem, LocalDateTime quando) {
+        situacao = ClinicaEnums.SituacaoIntegracao.FALHA;
+        dataHoraResposta = quando;
+        mensagemErro = mensagem;
+    }
 }

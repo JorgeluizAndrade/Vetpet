@@ -4,9 +4,11 @@ import com.clinica.ibmr.api.ApiDtos.*;
 import com.clinica.ibmr.api.ApiExceptions.*;
 import com.clinica.ibmr.api.ApiMapper;
 import com.clinica.ibmr.domain.*;
+import com.clinica.ibmr.integration.VacinaAntirrabicaAplicadaEvent;
 import com.clinica.ibmr.repository.*;
 import java.time.LocalDate;
 import java.util.List;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +19,12 @@ public class VacinaService {
     private final VacinaRepository vacinas;
     private final IntegracaoGovernoRepository integracoes;
     private final VinculoMicrochipRepository microchips;
+    private final ApplicationEventPublisher eventos;
     public VacinaService(AnimalService animais, VeterinarioService veterinarios, VacinaRepository vacinas,
-                        IntegracaoGovernoRepository integracoes, VinculoMicrochipRepository microchips) {
+                        IntegracaoGovernoRepository integracoes, VinculoMicrochipRepository microchips,
+                        ApplicationEventPublisher eventos) {
         this.animais = animais; this.veterinarios = veterinarios; this.vacinas = vacinas;
-        this.integracoes = integracoes; this.microchips = microchips;
+        this.integracoes = integracoes; this.microchips = microchips; this.eventos = eventos;
     }
 
     @Transactional
@@ -94,6 +98,7 @@ public class VacinaService {
         microchips.findByAnimal_IdAndDataDesvinculacaoIsNull(vacina.getAnimal().getId())
                 .ifPresent(integracao::associarVinculoMicrochip);
         integracoes.save(integracao);
+        eventos.publishEvent(new VacinaAntirrabicaAplicadaEvent(vacina.getId()));
     }
 
     private void validarDados(LocalDate dataAplicacao, LocalDate proximaDose, LocalDate validade,
